@@ -27,6 +27,7 @@ struct sysinfo *info;
 int i;
 int j;
 int k;
+int result;
 char name[MPI_MAX_PROCESSOR_NAME];
 int resultlen;
 int myrank;
@@ -37,6 +38,10 @@ unsigned long memorysize_dimension;
 unsigned long MAXI;
 unsigned long MAXJ;
 unsigned long MAXK;
+unsigned long ma;
+unsigned long la;
+unsigned long ta;
+unsigned long sa;
 int cpunumber_node;
 int dimension = 3;
 int thread_number = 2;
@@ -212,9 +217,58 @@ int main(int argc,char *argv[])
 {
 	THREADS_STRUCT *ts;
 
+/*
 	if(argc != 5){
 		error_arg();
 		exit(-1);
+	}
+*/
+
+	while((result=getopt(argc,argv,"s:m:l:t:hv"))!=-1){
+		switch(result){
+
+			/* 値をとらないオプション */
+			case 'h':
+				/* getoptの返り値は見付けたオプションである. */
+				help_arg();
+				fprintf(stdout,"%c\n",result);
+				break;
+			case 'v':
+				fprintf(stdout,"%c\n",result);
+				fprintf(stdout," Version is %d \n",VERSION);
+				break;
+	
+			case 's':
+				fprintf(stdout,"%c %s\n",result,optarg);
+				sa = atoi(optarg);
+				break;
+			case 'l':
+				fprintf(stdout,"%c %s\n",result,optarg);
+				la = atoi(optarg);
+				break;
+			case 't':
+				fprintf(stdout,"%c %s\n",result,optarg);
+				ta = atoi(optarg);
+				break;
+			case 'm':
+				/* 値を取る引数の場合は外部変数optargにその値を格納する. */
+				fprintf(stdout,"%c %s\n",result,optarg);
+				ma = atoi(optarg);
+				break;
+
+				/* 以下二つのcaseは意味がないようだ.
+				getoptが直接エラーを出力してくれるから.
+				プログラムを終了するなら意味があるかも知れない */
+			case ':':
+				/* 値を取る引数に値がなかった場合:を返す. */
+				fprintf(stdout,"%c needs value\n",result);
+				break;
+
+			/* getoptの引数で指定されなかったオプションを受け取ると?を返す. */
+			case '?':
+				fprintf(stdout,"unknown\n");
+				break;
+		}
 	}
 
 	info = malloc(sizeof(struct sysinfo));
@@ -263,9 +317,9 @@ int main(int argc,char *argv[])
 		printf(" ****** Attension! ******* \n");
 		printf(" Array size may be over ... \n");
 	} else {
-		MAXI = atoi(argv[2]);
-		MAXJ = atoi(argv[2]);
-		MAXK = atoi(argv[2]);
+		MAXI = ma;
+		MAXJ = ma;
+		MAXK = ma;
 	}
 
 	printf(" MAXI is %ld \n",MAXI);
@@ -279,49 +333,6 @@ int main(int argc,char *argv[])
 #endif
 	printf(" CPU number is %d \n",cpunumber_node);
 
-	while((result=getopt(argc,argv,"s:m:l:t:hv"))!=-1){
-		switch(result){
-
-			/* 値をとらないオプション */
-			case 'h':
-				/* getoptの返り値は見付けたオプションである. */
-				help_arg();
-				fprintf(stdout,"%c\n",result);
-				break;
-			case 'v':
-				fprintf(stdout,"%c\n",result);
-				fprintf(stdout," Version is %d \n",VERSION);
-				break;
-	
-			case 's':
-				sa = atoi(optarg);
-				break;
-			case 'l':
-				la = atoi(optarg);
-				break;
-			case 't':
-				ta = atoi(optarg);
-				break;
-			case 'm':
-				/* 値を取る引数の場合は外部変数optargにその値を格納する. */
-				fprintf(stdout,"%c %s\n",result,optarg);
-				ma = atoi(optarg);
-				break;
-
-				/* 以下二つのcaseは意味がないようだ.
-				getoptが直接エラーを出力してくれるから.
-				プログラムを終了するなら意味があるかも知れない */
-			case ':':
-				/* 値を取る引数に値がなかった場合:を返す. */
-				fprintf(stdout,"%c needs value\n",result);
-				break;
-
-			/* getoptの引数で指定されなかったオプションを受け取ると?を返す. */
-			case '?':
-				fprintf(stdout,"unknown\n");
-				break;
-		}
-	}
 
 	thread2 = (pthread_t *)malloc((sizeof(pthread_t)*(cpunumber_node+1)));
 	ts = (THREADS_STRUCT *)malloc( (sizeof(THREADS_STRUCT)*(cpunumber_node+1)) );
@@ -339,8 +350,8 @@ int main(int argc,char *argv[])
 			exit(-1);
 		}
 		ts[i].id = i;
-		ts[i].loop = atoi(argv[3]);
-		ts[i].runtime = atoi(argv[4]);
+		ts[i].loop = la;
+		ts[i].runtime = ta;
 		ts[i].MAX_THREADS = cpunumber_node;
 		/*
 		printf(" ID local = %d \n",ts[i].id);

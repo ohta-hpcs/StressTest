@@ -1,6 +1,6 @@
 /*
    stress test program
-   version 02
+   version 03
 */
 
 #include <stdio.h>
@@ -48,6 +48,7 @@ typedef struct {
 	int id;
 	unsigned long loop;
 	unsigned long runtime;
+	unsigned long maxi;
 	int MAX_THREADS;
 	FILE *fp;
 	unsigned int WriteLen;
@@ -77,62 +78,94 @@ void *cal_thread(void *p)
 	int kc;
 	int ip;
 	int ii;
+	int im;
+	unsigned int WriteLen;
+	unsigned long looptmp;
 	unsigned long loop;
+	unsigned long maxi;
 	int counter=0;
 	THREADS_STRUCT *pt = (THREADS_STRUCT *)p;
 	double sum=0.0;
 	double Totalrealsec=0.0;
 	double Totaliorealsec=0.0;
 	double Totalsec=0.0;
+	double Totalmemsize=0.0;
+	double *b;
 	struct timeval startTime, endTime, ioTime;
 	clock_t startClock, endClock, ioClock;
 
-	ip   = pt->id;
-	loop = pt->loop;
+	ip      = pt->id;
+	looptmp = pt->loop;
+	maxi    = pt->maxi;
 #ifdef DEBUG
-	printf(" ip = %d \n",ip);
+	printf(" looptmp = %ld , ip = %d \n",looptmp,ip);
+	printf(" maxi    = %ld , ip = %d \n",maxi,ip);
+	printf(" maxi pt = %ld , ip = %d \n",pt->maxi,ip);
 #endif
+	Totalrealsec   = 0.0;
+	Totaliorealsec = 0.0;
+	Totalsec       = 0.0;
+	Totalmemsize   = 0.0;
 
-	a[ip] = (double *)malloc((sizeof(double))*MAXI*MAXJ*MAXK);
-	if(loop == 0){
+	if(looptmp == 0){
 		loop = 10000000;
-	} 
+	} else {
+		loop = looptmp;
+	}
 	for(ii = 0 ;ii < loop ; ii++){
+
+#ifdef DEBUG
+	printf(" ii = %d ,ip = %d \n",ii,ip);
+	printf(" loop = %ld ,ip = %d \n",loop,ip);
+	printf(" maxi = %ld ,ip = %d \n",maxi,ip);
+#endif
+		sum = 0.0;
 
 		gettimeofday(&startTime, NULL);
 		startClock = clock();
 
-		for(ic=0;ic<MAXI;ic++){
-			for(jc=0;jc<MAXJ;jc++){
-				for(kc=0;kc<MAXK;kc++){
-					a[ip][ic*jc*kc] = 0.0; 
+		if(maxi < 3){
+			maxi = 4;
+		}
+		for(im = 3;im<maxi;im++){
+			b = (double *)malloc((sizeof(double))*im*im*im);
+			if( b == NULL) {
+				err(EXIT_FAILURE, "can not create thread 2" );
+			}
+				
+			for(ic=0;ic<im;ic++){
+				for(jc=0;jc<im;jc++){
+					for(kc=0;kc<im;kc++){
+						b[ic*jc*kc] = 0.0; 
+					}
 				}
 			}
-		}
-		for(ic=0;ic<MAXI;ic++){
-			a[ip][ic] = 1.0; 
-		}
-		for(ic=0;ic<MAXI;ic++){
-			for(jc=0;jc<MAXJ;jc++){
-				for(kc=0;kc<MAXK;kc++){
-					sum = sum + (a[ip][ic*jc*kc] + a[ip][(ic-1)*jc*kc] + a[ip][(ic+1)*jc*kc] 
-						                     + a[ip][ic*(jc-1)*kc] + a[ip][ic*(jc+1)*kc] 
-                                                                     + a[ip][ic*jc*(kc-1)] + a[ip][ic*jc*(kc+1)] 
-                                                    )/7.0; 
+			for(ic=0;ic<im;ic++){
+				b[ic] = 1.0; 
+			}
+			for(ic=1;ic<(im-1);ic++){
+				for(jc=1;jc<(im-1);jc++){
+					for(kc=1;kc<(im-1);kc++){
+						sum = sum + (b[ic*jc*kc] + b[(ic-1)*jc*kc] + b[(ic+1)*jc*kc] 
+						                     	+ b[ic*(jc-1)*kc] + b[ic*(jc+1)*kc] 
+                                                                     	+ b[ic*jc*(kc-1)] + b[ic*jc*(kc+1)] 
+                                                    	)/7.0; 
+					}
 				}
 			}
-		}
-		for(ic=0;ic<MAXI;ic++){
-			a[ip][ic] = sum; 
-		}
+			for(ic=0;ic<im;ic++){
+				b[ic] = sum; 
+			}
 	
-		gettimeofday(&ioTime, NULL);
-		ioClock = clock();
+			gettimeofday(&ioTime, NULL);
+			ioClock = clock();
+	
+			WriteLen = (int)((im*im*im)-1);
+			fwrite((char *)b,sizeof(char),WriteLen,pt->fp);
+			fseek(pt->fp,  0L, SEEK_SET);
 
-		pt->WriteLen = (int)((MAXI*MAXJ*MAXK)-1);
-		fwrite((char *)a[ip],sizeof(double),pt->WriteLen,pt->fp);
-		fseek(pt->fp,  0L, SEEK_SET);
-		
+			free(b);
+		}
 		gettimeofday(&endTime, NULL);
 		endClock = clock();
 	
@@ -145,7 +178,7 @@ void *cal_thread(void *p)
 		double realsec = diffsec+diffsub*1e-6;
 		double cpusec = (endClock - startClock)/(double)CLOCKS_PER_SEC;
 		double percent = 100.0*cpusec/realsec;
-		
+	
 		time_t iodiffsec = difftime(endTime.tv_sec, ioTime.tv_sec);
 		suseconds_t iodiffsub = endTime.tv_usec - ioTime.tv_usec;
 		if (iodiffsub < 0) {
@@ -156,28 +189,22 @@ void *cal_thread(void *p)
 		double iocpusec = (endClock - ioClock)/(double)CLOCKS_PER_SEC;
 		double iopercent = 100.0*iocpusec/iorealsec;
 
-		Totalrealsec += realsec;
+		Totalrealsec   += realsec;
 		Totaliorealsec += iorealsec;
-		Totalsec  += realsec+ iorealsec;
+		Totalsec       += realsec+ iorealsec;
+		Totalmemsize   += im;
 
 		counter++;
-		/*
-		if(Totalsec > pt->runtime) break;
-		*/
 	}
 	printf("******************************** \n");
 	printf("**** Real Time  %f s\n", Totalrealsec);
-	printf("**** I/O  Time  %f s\n", Totaliorealsec);
+	printf("**** I/O  Time  %f s\n", Totaliorealsec/Totalmemsize);
 	printf("**** Ave.       %f %\n", Totalrealsec/counter);
 	printf("******************************** \n");
 
-		/*
-		pt->WriteLen = strlen((char *)a[ip]);
-		*/
 #ifdef DEBUG
-			printf(" write start WriteLen = %d ,ip = %d \n",pt->WriteLen,ip);
+	printf(" write start WriteLen = %d ,ip = %d \n",pt->WriteLen,ip);
 #endif
-	free(a[ip]);
 	return 0;
 }
 	
@@ -245,7 +272,7 @@ int main(int argc,char *argv[])
 
 	memorysize_dimension = (cbrt_simple(memorysize_5))*0.7;
 
-	if(argv[2] == 0){
+	if(atoi(argv[2]) == 0){
 		MAXI = memorysize_dimension;
 		MAXJ = memorysize_dimension;
 		MAXK = memorysize_dimension;
@@ -288,23 +315,24 @@ int main(int argc,char *argv[])
 			exit(-1);
 		}
 		ts[i].id = i;
+		ts[i].maxi = MAXI;
 		ts[i].loop = atoi(argv[3]);
 		ts[i].runtime = atoi(argv[4]);
 		ts[i].MAX_THREADS = cpunumber_node;
-		/*
+#ifdef DEBUG
 		printf(" ID local = %d \n",ts[i].id);
 		printf(" ID local = %d \n",ts[i].MAX_THREADS);
-		*/
+#endif
 		ret2 = pthread_create(&thread2[i],NULL,(void *)cal_thread,(void *) &ts[i]);
 		if (ret2 != 0) {
 			err(EXIT_FAILURE, "can not create thread 2: %s", strerror(ret2) );
 		}
 	}
 
-	for(i=1;i<cpunumber_node;i++){
+	for(i=0;i<cpunumber_node;i++){
 		ret2 = pthread_join(thread2[i],NULL);
 		if (ret2 != 0) {
-			err(EXIT_FAILURE, ret2, "can not join thread 2");
+			err(EXIT_FAILURE, "can not join thread 2: %s", strerror(ret2) );
 		}
 	}
 
