@@ -1,5 +1,5 @@
-CC = gcc
-CXX = g++
+CC = icc
+CXX = icpc
 MPIHOME = /opt/intel/impi/4.1.3.048/intel64
 MPIINCS = ${MPIHOME}/include
 MPILIBS = ${MPIHOME}/lib
@@ -19,7 +19,7 @@ TARGETCXXOBJ=${TARGETCXX_SOURCES:.cpp=.o}
 ${TARGET}:${TARGETOBJ} ${TARGETCXXOBJ}
 	${CC} ${CFLAGS} ${LFLAGS} -o $@ $^ -lm
 clean: 
-	rm -rf *.o ${TARGET} tmpfile_*.txt
+	rm -rf *.o ${TARGET} tmpfile_*.txt bi_*.txt
 ioclean: 
-	rm -rf tmpfile_*.txt
+	rm -rf tmpfile_*.txt bi_*.txt
 

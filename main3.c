@@ -42,6 +42,7 @@ pthread_t *thread2;
 int arg1 = 0;
 int arg2 = 1;
 int ret1;
+size_t filemaxsize;
 int ret2;
 double **a;
 char filename[20];
@@ -233,11 +234,12 @@ void error_arg()
 	printf(" argment is less \n");
 	printf(" ./stress sigle memsize loop time \n");
 	printf(" Example ... \n");
-	printf(" ./stress 0 500 300 0 \n");
+	printf(" ./stress 2 500 30 0 2000 \n");
 	printf(" \n");
-	printf(" 1st argument ... Single or Parallel? \n");
-	printf(" if single process, argument is 0 \n");
-	printf(" if parallel process, argument is 1 \n");
+	printf(" 1st argument ... IO or Calculation or Mix ? \n");
+	printf(" if IO only, argument is 0 \n");
+	printf(" if Calculation only, argument is 1 \n");
+	printf(" if mix mode, argument is 2\n");
 	printf(" \n");
 	printf(" 2nd argument ... Array size (memory size). \n");
 	printf(" if memsize not need, argument is 0 \n");
@@ -247,13 +249,18 @@ void error_arg()
 	printf(" \n");
 	printf(" 4th argument ... Time. \n");
 	printf(" if time not need, argument is 0 \n");
+	printf(" \n");
+	printf(" 5th argument ... IO size. \n");
+	printf(" unit is Byte. \n");
+	printf(" if size not need, argument is 0 \n");
+	printf(" if 1st argument is 1, argument is 0 \n");
 }
 
 int main(int argc,char *argv[])
 {
 	THREADS_STRUCT *ts;
 
-	if(argc != 5){
+	if(argc != 6){
 		error_arg();
 		exit(-1);
 	}
@@ -312,6 +319,9 @@ int main(int argc,char *argv[])
 	printf(" MAXJ is %ld \n",MAXJ);
 	printf(" MAXK is %ld \n",MAXK);
 
+	filemaxsize = atoi(argv[5]);
+	printf(" File Size is %ld \n",filemaxsize);
+
 #ifdef DEBUG
 	printf(" MAXI is %ld \n",MAXI);
 	printf(" MAXJ is %ld \n",MAXJ);
@@ -324,32 +334,34 @@ int main(int argc,char *argv[])
 
 	a = (double **)malloc( (sizeof(double *)*cpunumber_node) );
 
-	for(i=0;i<cpunumber_node;i++){
-		if(nprocs == 0){
-			sprintf(filename, "tmpfile_%03d.txt", i);
-		} else {
-			sprintf(filename, "tmpfile_%03d_%04d.txt", i,myrank);
-		}
-		if( (ts[i].fp= fopen(filename,"wb")) == NULL){
-			printf("Open Error \n");
-			exit(-1);
-		}
-		ts[i].id = i;
-		ts[i].maxi = MAXI;
-		ts[i].loop = atoi(argv[3]);
-		ts[i].runtime = atoi(argv[4]);
-		ts[i].MAX_THREADS = cpunumber_node;
+	if(atoi(argv[1]) == 1){
+		for(i=0;i<cpunumber_node;i++){
+			if(nprocs == 0){
+				sprintf(filename, "tmpfile_%03d.txt", i);
+			} else {
+				sprintf(filename, "tmpfile_%03d_%04d.txt", i,myrank);
+			}
+			if( (ts[i].fp= fopen(filename,"wb")) == NULL){
+				printf("Open Error \n");
+				exit(-1);
+			}
+			ts[i].id = i;
+			ts[i].maxi = MAXI;
+			ts[i].loop = atoi(argv[3]);
+			ts[i].runtime = atoi(argv[4]);
+			ts[i].MAX_THREADS = cpunumber_node;
 #ifdef DEBUG
-		printf(" ID local = %d \n",ts[i].id);
-		printf(" ID local = %d \n",ts[i].MAX_THREADS);
+			printf(" ID local = %d \n",ts[i].id);
+			printf(" ID local = %d \n",ts[i].MAX_THREADS);
 #endif
-		ret2 = pthread_create(&thread2[i],NULL,(void *)cal_thread,(void *) &ts[i]);
-		if (ret2 != 0) {
-			err(EXIT_FAILURE, "can not create thread 2: %s", strerror(ret2) );
+			ret2 = pthread_create(&thread2[i],NULL,(void *)cal_thread,(void *) &ts[i]);
+			if (ret2 != 0) {
+				err(EXIT_FAILURE, "can not create thread 2: %s", strerror(ret2) );
+			}
 		}
-	}
+	}else if(atoi(argv[1]) == 0){
 	
-	ret = ogafile(20, 30, 5, 20, 10000, 512, 1536, 100000);
+		ret = ogafile(20, 30, 5, 20, 10000, filemaxsize*0.8, filemaxsize, 100000);
 /*
 const size_t	gmin	     = 20;
 const size_t	gmax	     = 30;
@@ -360,11 +372,40 @@ const size_t	mod_minsize  = 512;
 const size_t	mod_maxsize  = 1536;
 const size_t	mod_dummynum = 100000;
 */
+	}else if(atoi(argv[1]) == 2 ){
+		for(i=0;i<cpunumber_node;i++){
+			if(nprocs == 0){
+				sprintf(filename, "tmpfile_%03d.txt", i);
+			} else {
+				sprintf(filename, "tmpfile_%03d_%04d.txt", i,myrank);
+			}
+			if( (ts[i].fp= fopen(filename,"wb")) == NULL){
+				printf("Open Error \n");
+				exit(-1);
+			}
+			ts[i].id = i;
+			ts[i].maxi = MAXI;
+			ts[i].loop = atoi(argv[3]);
+			ts[i].runtime = atoi(argv[4]);
+			ts[i].MAX_THREADS = cpunumber_node;
+#ifdef DEBUG
+			printf(" ID local = %d \n",ts[i].id);
+			printf(" ID local = %d \n",ts[i].MAX_THREADS);
+#endif
+			ret2 = pthread_create(&thread2[i],NULL,(void *)cal_thread,(void *) &ts[i]);
+			if (ret2 != 0) {
+				err(EXIT_FAILURE, "can not create thread 2: %s", strerror(ret2) );
+			}
+		}
+		ret = ogafile(20, 30, 5, 20, 10000, filemaxsize*0.8, filemaxsize, 100000);
+	}
 
-	for(i=0;i<cpunumber_node;i++){
-		ret2 = pthread_join(thread2[i],NULL);
-		if (ret2 != 0) {
-			err(EXIT_FAILURE, "can not join thread 2: %s", strerror(ret2) );
+	if(atoi(argv[1]) == 1 || atoi(argv[1]) == 2){
+		for(i=0;i<cpunumber_node;i++){
+			ret2 = pthread_join(thread2[i],NULL);
+			if (ret2 != 0) {
+				err(EXIT_FAILURE, "can not join thread 2: %s", strerror(ret2) );
+			}
 		}
 	}
 
