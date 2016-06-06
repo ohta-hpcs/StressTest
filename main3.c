@@ -28,6 +28,7 @@ char name[MPI_MAX_PROCESSOR_NAME];
 int resultlen;
 int myrank;
 int nprocs;
+int ret;
 unsigned long memorysize;
 unsigned long memorysize_5;
 unsigned long memorysize_dimension;
@@ -66,6 +67,25 @@ double cbrt_newton(double a, double x) {
 double cbrt_simple(double x) {
 	return pow(x, 1.0 / 3.0);
 }
+
+int ogafile (size_t gmin, 
+             size_t gmax, 
+             size_t lmin, 
+             size_t lmax, 
+             size_t mod_nmax, 
+             size_t mod_minsize, 
+             size_t mod_maxsize,
+             size_t mod_dummynum);
+/*
+const size_t	gmin	     = 20;
+const size_t	gmax	     = 30;
+const size_t	lmin	     = 5;
+const size_t	lmax	     = 20;
+const size_t	mod_nmax     = 10000;
+const size_t	mod_minsize  = 512;
+const size_t	mod_maxsize  = 1536;
+const size_t	mod_dummynum = 100000;
+*/
 
 void *cal_thread(void *p)
 {
@@ -328,6 +348,18 @@ int main(int argc,char *argv[])
 			err(EXIT_FAILURE, "can not create thread 2: %s", strerror(ret2) );
 		}
 	}
+	
+	ret = ogafile(20, 30, 5, 20, 10000, 512, 1536, 100000);
+/*
+const size_t	gmin	     = 20;
+const size_t	gmax	     = 30;
+const size_t	lmin	     = 5;
+const size_t	lmax	     = 20;
+const size_t	mod_nmax     = 10000;
+const size_t	mod_minsize  = 512;
+const size_t	mod_maxsize  = 1536;
+const size_t	mod_dummynum = 100000;
+*/
 
 	for(i=0;i<cpunumber_node;i++){
 		ret2 = pthread_join(thread2[i],NULL);
