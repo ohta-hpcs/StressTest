@@ -51,6 +51,10 @@ typedef struct {
 	unsigned long loop;
 	unsigned long runtime;
 	unsigned long maxi;
+	size_t arg1;
+	size_t arg2;
+	size_t arg3;
+	size_t arg4;
 	int MAX_THREADS;
 	FILE *fp;
 	unsigned int WriteLen;
@@ -148,7 +152,7 @@ void *cal_thread(void *p)
 		if(maxi < 3){
 			maxi = 4;
 		}
-		for(im = 3;im<maxi;im++){
+		for(im = (maxi-1);im<maxi;im++){
 			b = (double *)malloc((sizeof(double))*im*im*im);
 			if( b == NULL) {
 				err(EXIT_FAILURE, "can not create thread 2" );
@@ -181,9 +185,11 @@ void *cal_thread(void *p)
 			gettimeofday(&ioTime, NULL);
 			ioClock = clock();
 	
-			WriteLen = (int)((im*im*im)-1);
-			fwrite((char *)b,sizeof(char),WriteLen,pt->fp);
-			fseek(pt->fp,  0L, SEEK_SET);
+			if(pt->arg3 == 0|| pt->arg3 == 2){
+				WriteLen = (int)((im*im*im)-1);
+				fwrite((char *)b,sizeof(char),WriteLen,pt->fp);
+				fseek(pt->fp,  0L, SEEK_SET);
+			}
 
 			free(b);
 		}
@@ -349,6 +355,10 @@ int main(int argc,char *argv[])
 			ts[i].maxi = MAXI;
 			ts[i].loop = atoi(argv[3]);
 			ts[i].runtime = atoi(argv[4]);
+			ts[i].arg1 = atoi(argv[1]);
+			ts[i].arg2 = atoi(argv[2]);
+			ts[i].arg3 = atoi(argv[3]);
+			ts[i].arg4 = atoi(argv[4]);
 			ts[i].MAX_THREADS = cpunumber_node;
 #ifdef DEBUG
 			printf(" ID local = %d \n",ts[i].id);
