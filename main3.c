@@ -1,6 +1,6 @@
 /*
    stress test program
-   version 03
+   version 04
 */
 
 #include <stdio.h>
@@ -20,30 +20,12 @@
 #include <time.h>
 #include <sys/time.h>
 
-struct sysinfo *info;
-int i;
-int j;
-int k;
 char name[MPI_MAX_PROCESSOR_NAME];
 int resultlen;
 int myrank;
 int nprocs;
-int ret;
-unsigned long memorysize;
-unsigned long memorysize_5;
-unsigned long memorysize_dimension;
-unsigned long MAXI;
-unsigned long MAXJ;
-unsigned long MAXK;
-int cpunumber_node;
 int dimension = 3;
-int thread_number = 2;
-pthread_t *thread2;
-int arg1 = 0;
-int arg2 = 1;
-int ret1;
 size_t filemaxsize;
-int ret2;
 double **a;
 char filename[20];
 typedef struct {
@@ -55,6 +37,8 @@ typedef struct {
 	size_t arg2;
 	size_t arg3;
 	size_t arg4;
+	size_t arg5;
+	size_t arg6;
 	int MAX_THREADS;
 	FILE *fp;
 	unsigned int WriteLen;
@@ -185,7 +169,7 @@ void *cal_thread(void *p)
 			gettimeofday(&ioTime, NULL);
 			ioClock = clock();
 	
-			if(pt->arg3 == 0|| pt->arg3 == 2){
+			if(pt->arg1 == 1){
 				WriteLen = (int)((im*im*im)-1);
 				fwrite((char *)b,sizeof(char),WriteLen,pt->fp);
 				fseek(pt->fp,  0L, SEEK_SET);
@@ -224,9 +208,9 @@ void *cal_thread(void *p)
 		counter++;
 	}
 	printf("******************************** \n");
-	printf("**** Real Time  %f s\n", Totalrealsec);
-	printf("**** I/O  Time  %f s\n", Totaliorealsec/Totalmemsize);
-	printf("**** Ave.       %f %\n", Totalrealsec/counter);
+	printf("**** Real Time  %f      s\n", Totalrealsec);
+	printf("**** I/O  Time  %f byte/s\n", Totalmemsize*Totalmemsize*Totalmemsize/Totaliorealsec);
+	printf("**** Ave.       %f      s\n", Totalrealsec/counter);
 	printf("******************************** \n");
 
 #ifdef DEBUG
@@ -240,31 +224,106 @@ void error_arg()
 	printf(" argment is less \n");
 	printf(" ./stress sigle memsize loop time \n");
 	printf(" Example ... \n");
-	printf(" ./stress 2 500 30 0 2000 \n");
+	printf(" ./stress 3 24 500 30 0 2000 \n");
 	printf(" \n");
 	printf(" 1st argument ... IO or Calculation or Mix ? \n");
 	printf(" if IO only, argument is 0 \n");
-	printf(" if Calculation only, argument is 1 \n");
-	printf(" if mix mode, argument is 2\n");
+	printf(" if Calculation add ResultIO , argument is 1 \n");
+	printf(" if Calculation only, argument is 2 \n");
+	printf(" if mix mode, argument is 3\n");
 	printf(" \n");
-	printf(" 2nd argument ... Array size (memory size). \n");
+	printf(" 2nd argument ... Number of CPUs (memory size). \n");
+	printf(" if CPUs not need, argument is 0 \n");
+	printf(" if Number of CPUs is Over Real CPUs Number , argument is Real CPUs Number \n");
+	printf(" \n");
+	printf(" 3rd argument ... Array size (memory size). \n");
 	printf(" if memsize not need, argument is 0 \n");
 	printf(" \n");
-	printf(" 3rd argument ... Loop number. \n");
+	printf(" 4th argument ... Loop number. \n");
 	printf(" if loop not need, argument is 0 \n");
 	printf(" \n");
-	printf(" 4th argument ... Time. \n");
+	printf(" 5th argument ... Time. \n");
 	printf(" if time not need, argument is 0 \n");
 	printf(" \n");
-	printf(" 5th argument ... IO size. \n");
+	printf(" 6th argument ... IO size. \n");
 	printf(" unit is Byte. \n");
 	printf(" if size not need, argument is 0 \n");
 	printf(" if 1st argument is 1, argument is 0 \n");
 }
 
+int function_create_thread(int arg1,int arg2,int arg3,int arg4,int arg5, int arg6, int cpunumber_node, int MAXI){
+	int i;
+	int ret2;
+	THREADS_STRUCT *ts;
+	pthread_t *thread2;
+
+	thread2 = (pthread_t *)malloc( (sizeof(pthread_t)*(cpunumber_node+1)));
+	ts = (THREADS_STRUCT *)malloc( (sizeof(THREADS_STRUCT)*(cpunumber_node+1)) );
+
+	for(i=0;i<cpunumber_node;i++){
+		if(nprocs == 0){
+			sprintf(filename, "tmpfile_%03d.txt", i);
+		} else {
+			sprintf(filename, "tmpfile_%03d_%04d.txt", i,myrank);
+		}
+		if(arg1 == 1 || arg1 == 3){
+			if( (ts[i].fp= fopen(filename,"wb")) == NULL){
+				printf("Open Error \n");
+				exit(-1);
+			}
+		}
+		ts[i].id = i;
+		ts[i].maxi = MAXI;
+		ts[i].loop = arg4;
+		ts[i].runtime = arg5;
+		ts[i].arg1 = arg1;
+		ts[i].arg2 = arg2;
+		ts[i].arg3 = arg3;
+		ts[i].arg4 = arg4;
+		ts[i].arg5 = arg5;
+		ts[i].arg6 = arg6;
+		ts[i].MAX_THREADS = cpunumber_node;
+#ifdef DEBUG
+		printf(" ./stress 3 24 500 30 0 2000 \n");
+		printf(" ID local = %d \n",ts[i].id);
+		printf(" ID local = %d \n",ts[i].MAX_THREADS);
+#endif
+		ret2 = pthread_create(&thread2[i],NULL,(void *)cal_thread,(void *) &ts[i]);
+		if (ret2 != 0) {
+			err(EXIT_FAILURE, "can not create thread 2: %s", strerror(ret2) );
+		}
+	}
+
+	if(arg1 == 3){
+		ret2 = ogafile(20, 30, 5, 20, 10000, filemaxsize*0.8, filemaxsize, 100000);
+		if (ret2 != 0) {
+			err(EXIT_FAILURE, "can not OgaIO: %s", strerror(ret2) );
+		}
+	}
+
+	for(i=0;i<cpunumber_node;i++){
+		ret2 = pthread_join(thread2[i],NULL);
+		if (ret2 != 0) {
+			err(EXIT_FAILURE, "can not join thread 2: %s", strerror(ret2) );
+		}
+	}
+	return 0;
+}
+
 int main(int argc,char *argv[])
 {
-	THREADS_STRUCT *ts;
+	int ret;
+	int cpunumber_node;
+	struct sysinfo *info;
+	int i;
+	int j;
+	int k;
+	size_t memorysize;
+	size_t memorysize_5;
+	size_t memorysize_dimension;
+	size_t MAXI;
+	size_t MAXJ;
+	size_t MAXK;
 
 	if(argc != 6){
 		error_arg();
@@ -290,42 +349,44 @@ int main(int argc,char *argv[])
 	printf(" Free Memory is %ld \n",info->freeram);
 
 	cpunumber_node = (sysconf(_SC_NPROCESSORS_CONF) * 1 );
+	
+	if(atoi(argv[2]) == 0){
+		cpunumber_node = cpunumber_node;
+	}else{
+		if(atoi(argv[2]) > cpunumber_node){
+			printf(" ****** Attension! ******* \n");
+			printf(" CPU Number is maybe over ... \n");
+			cpunumber_node = cpunumber_node;
+		} else {
+			cpunumber_node = atoi(argv[2]);
+		}
+	}
 	memorysize = info->totalram * 0.7;
 	memorysize_5 = (memorysize / cpunumber_node) * 0.7;
-	/*
-	memorysize_dimension = memorysize_5^(1/dimension);
-	memorysize_dimension = (int)(memorysize_5)^(1/4);
-	memorysize_dimension = (int)(cbrt_newton(memorysize_5, 10.0));
-	memorysize_dimension = (int)((memorysize_5)/4);
-	MAXI = memorysize_dimension/cpunumber_node/sizeof(double);
-	MAXJ = memorysize_dimension/cpunumber_node/sizeof(double);
-	MAXK = memorysize_dimension/cpunumber_node/sizeof(double);
-	printf(" memorysize_dimension  is %ld \n",memorysize_dimension);
-	*/
 
 	memorysize_dimension = (cbrt_simple(memorysize_5))*0.7;
 
-	if(atoi(argv[2]) == 0){
+	if(atoi(argv[3]) == 0){
 		MAXI = memorysize_dimension;
 		MAXJ = memorysize_dimension;
 		MAXK = memorysize_dimension;
-	} else if( atoi(argv[2]) > memorysize_dimension ){
+	} else if( atoi(argv[3]) > memorysize_dimension ){
 		MAXI = memorysize_dimension;
 		MAXJ = memorysize_dimension;
 		MAXK = memorysize_dimension;
 		printf(" ****** Attension! ******* \n");
 		printf(" Array size may be over ... \n");
 	} else {
-		MAXI = atoi(argv[2]);
-		MAXJ = atoi(argv[2]);
-		MAXK = atoi(argv[2]);
+		MAXI = atoi(argv[3]);
+		MAXJ = atoi(argv[3]);
+		MAXK = atoi(argv[3]);
 	}
 
 	printf(" MAXI is %ld \n",MAXI);
 	printf(" MAXJ is %ld \n",MAXJ);
 	printf(" MAXK is %ld \n",MAXK);
 
-	filemaxsize = atoi(argv[5]);
+	filemaxsize = atoi(argv[6]);
 	printf(" File Size is %ld \n",filemaxsize);
 
 #ifdef DEBUG
@@ -335,88 +396,19 @@ int main(int argc,char *argv[])
 #endif
 	printf(" CPU number is %d \n",cpunumber_node);
 
-	thread2 = (pthread_t *)malloc((sizeof(pthread_t)*(cpunumber_node+1)));
-	ts = (THREADS_STRUCT *)malloc( (sizeof(THREADS_STRUCT)*(cpunumber_node+1)) );
-
 	a = (double **)malloc( (sizeof(double *)*cpunumber_node) );
 
-	if(atoi(argv[1]) == 1){
-		for(i=0;i<cpunumber_node;i++){
-			if(nprocs == 0){
-				sprintf(filename, "tmpfile_%03d.txt", i);
-			} else {
-				sprintf(filename, "tmpfile_%03d_%04d.txt", i,myrank);
-			}
-			if( (ts[i].fp= fopen(filename,"wb")) == NULL){
-				printf("Open Error \n");
-				exit(-1);
-			}
-			ts[i].id = i;
-			ts[i].maxi = MAXI;
-			ts[i].loop = atoi(argv[3]);
-			ts[i].runtime = atoi(argv[4]);
-			ts[i].arg1 = atoi(argv[1]);
-			ts[i].arg2 = atoi(argv[2]);
-			ts[i].arg3 = atoi(argv[3]);
-			ts[i].arg4 = atoi(argv[4]);
-			ts[i].MAX_THREADS = cpunumber_node;
-#ifdef DEBUG
-			printf(" ID local = %d \n",ts[i].id);
-			printf(" ID local = %d \n",ts[i].MAX_THREADS);
-#endif
-			ret2 = pthread_create(&thread2[i],NULL,(void *)cal_thread,(void *) &ts[i]);
-			if (ret2 != 0) {
-				err(EXIT_FAILURE, "can not create thread 2: %s", strerror(ret2) );
-			}
-		}
-	}else if(atoi(argv[1]) == 0){
-	
+	if(atoi(argv[1]) == 0){
 		ret = ogafile(20, 30, 5, 20, 10000, filemaxsize*0.8, filemaxsize, 100000);
-/*
-const size_t	gmin	     = 20;
-const size_t	gmax	     = 30;
-const size_t	lmin	     = 5;
-const size_t	lmax	     = 20;
-const size_t	mod_nmax     = 10000;
-const size_t	mod_minsize  = 512;
-const size_t	mod_maxsize  = 1536;
-const size_t	mod_dummynum = 100000;
-*/
+	}else if(atoi(argv[1]) == 1){
+		ret = function_create_thread(atoi(argv[1]), atoi(argv[2]), atoi(argv[3]), atoi(argv[4]), atoi(argv[5]), atoi(argv[6]), cpunumber_node, MAXI); 
 	}else if(atoi(argv[1]) == 2 ){
-		for(i=0;i<cpunumber_node;i++){
-			if(nprocs == 0){
-				sprintf(filename, "tmpfile_%03d.txt", i);
-			} else {
-				sprintf(filename, "tmpfile_%03d_%04d.txt", i,myrank);
-			}
-			if( (ts[i].fp= fopen(filename,"wb")) == NULL){
-				printf("Open Error \n");
-				exit(-1);
-			}
-			ts[i].id = i;
-			ts[i].maxi = MAXI;
-			ts[i].loop = atoi(argv[3]);
-			ts[i].runtime = atoi(argv[4]);
-			ts[i].MAX_THREADS = cpunumber_node;
-#ifdef DEBUG
-			printf(" ID local = %d \n",ts[i].id);
-			printf(" ID local = %d \n",ts[i].MAX_THREADS);
-#endif
-			ret2 = pthread_create(&thread2[i],NULL,(void *)cal_thread,(void *) &ts[i]);
-			if (ret2 != 0) {
-				err(EXIT_FAILURE, "can not create thread 2: %s", strerror(ret2) );
-			}
-		}
-		ret = ogafile(20, 30, 5, 20, 10000, filemaxsize*0.8, filemaxsize, 100000);
+		ret = function_create_thread(atoi(argv[1]), atoi(argv[2]), atoi(argv[3]), atoi(argv[4]), atoi(argv[5]), atoi(argv[6]), cpunumber_node, MAXI); 
+	}else if(atoi(argv[1]) == 3){
+		ret = function_create_thread(atoi(argv[1]), atoi(argv[2]), atoi(argv[3]), atoi(argv[4]), atoi(argv[5]), atoi(argv[6]), cpunumber_node, MAXI); 
 	}
 
 	if(atoi(argv[1]) == 1 || atoi(argv[1]) == 2){
-		for(i=0;i<cpunumber_node;i++){
-			ret2 = pthread_join(thread2[i],NULL);
-			if (ret2 != 0) {
-				err(EXIT_FAILURE, "can not join thread 2: %s", strerror(ret2) );
-			}
-		}
 	}
 
 #ifdef MULTI
